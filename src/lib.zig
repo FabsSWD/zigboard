@@ -23,6 +23,10 @@ pub const adapters = struct {
     pub const FilePersistence = @import("adapters/file_persistence.zig").FilePersistence;
 };
 
+pub const infrastructure = struct {
+    pub const Daemon = @import("infrastructure/daemon.zig").Daemon;
+};
+
 pub const ipc = struct {
     pub const LocalHttpServer = @import("ipc/local_http_server.zig").LocalHttpServer;
     pub const HistoryQueryHandler = @import("ipc/query_handlers.zig").HistoryQueryHandler;
