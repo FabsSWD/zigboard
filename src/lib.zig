@@ -15,3 +15,4 @@ pub const application = struct {
     pub const ListClipboardHistory = @import("application/list_clipboard_history.zig").ListClipboardHistory;
     pub const PinClipboardEntry = @import("application/pin_clipboard_entry.zig").PinClipboardEntry;
 };
+pub const DeleteClipboardEntry = @import("application/delete_clipboard_entry.zig").DeleteClipboardEntry;
