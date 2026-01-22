@@ -9,3 +9,7 @@ pub const domain = struct {
     pub const Session = session.Session;
     pub const ClipboardHistory = history.ClipboardHistory;
 };
+
+pub const application = struct {
+    pub const AddClipboardEntry = @import("application/add_clipboard_entry.zig").AddClipboardEntry;
+};
