@@ -19,4 +19,6 @@ pub const DeleteClipboardEntry = @import("application/delete_clipboard_entry.zig
 
 pub const adapters = struct {
     pub const LinuxClipboard = @import("adapters/linux_clipboard.zig").LinuxClipboard;
+    pub const ClipboardListener = @import("adapters/clipboard_listener.zig").ClipboardListener;
+    pub const FilePersistence = @import("adapters/file_persistence.zig").FilePersistence;
 };
