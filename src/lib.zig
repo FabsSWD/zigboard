@@ -26,4 +26,5 @@ pub const adapters = struct {
 pub const ipc = struct {
     pub const LocalHttpServer = @import("ipc/local_http_server.zig").LocalHttpServer;
     pub const HistoryQueryHandler = @import("ipc/query_handlers.zig").HistoryQueryHandler;
+    pub const CommandHandler = @import("ipc/command_handlers.zig").CommandHandler;
 };
