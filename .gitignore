@@ -1,0 +1,17 @@
+# Zig build artifacts
+zig-cache/
+zig-out/
+.zig-cache/
+.zig-out/
+
+# General build outputs
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+
+# Editor/OS
+.DS_Store
+Thumbs.db
