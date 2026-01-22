@@ -12,4 +12,5 @@ pub const domain = struct {
 
 pub const application = struct {
     pub const AddClipboardEntry = @import("application/add_clipboard_entry.zig").AddClipboardEntry;
+    pub const ListClipboardHistory = @import("application/list_clipboard_history.zig").ListClipboardHistory;
 };
