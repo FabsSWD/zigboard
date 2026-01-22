@@ -14,6 +14,8 @@ pub const application = struct {
     pub const AddClipboardEntry = @import("application/add_clipboard_entry.zig").AddClipboardEntry;
     pub const ListClipboardHistory = @import("application/list_clipboard_history.zig").ListClipboardHistory;
     pub const PinClipboardEntry = @import("application/pin_clipboard_entry.zig").PinClipboardEntry;
+    pub const InitializeSession = @import("application/initialize_session.zig").InitializeSession;
+    pub const SessionRegistry = @import("application/initialize_session.zig").SessionRegistry;
 };
 pub const DeleteClipboardEntry = @import("application/delete_clipboard_entry.zig").DeleteClipboardEntry;
 
