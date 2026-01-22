@@ -12,7 +12,7 @@ jobs:
     name: Format Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2
@@ -36,7 +36,7 @@ jobs:
             zig-version: 'master'
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2
@@ -62,7 +62,7 @@ jobs:
     name: Code Coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2
@@ -91,7 +91,7 @@ jobs:
     name: Documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2

@@ -19,7 +19,7 @@ jobs:
     name: Build Zig Documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2
@@ -42,7 +42,7 @@ jobs:
     name: Deploy User Docs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Detect user docs
         id: detect
