@@ -1,0 +1,39 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    # Run every Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+jobs:
+  update:
+    name: Update Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.13.0
+      
+      - name: Fetch latest dependencies
+        run: zig build --fetch
+      
+      - name: Run tests
+        run: zig build test
+      
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: update dependencies'
+          title: 'chore: update dependencies'
+          body: |
+            Automated dependency update.
+            
+            This PR was automatically created by the dependency-update workflow.
+            Please review the changes and run tests before merging.
+          branch: deps/auto-update
+          delete-branch: true

@@ -1,0 +1,50 @@
+name: Security Audit
+
+on:
+  schedule:
+    # Run every day at 00:00 UTC
+    - cron: '0 0 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'build.zig.zon'
+      - 'build.zig'
+  pull_request:
+    paths:
+      - 'build.zig.zon'
+      - 'build.zig'
+  workflow_dispatch:
+
+jobs:
+  # Check for outdated dependencies
+  dependency-check:
+    name: Dependency Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.13.0
+      
+      - name: Fetch dependencies
+        run: zig build --fetch
+      
+      - name: Verify build
+        run: zig build
+
+  # Static analysis
+  static-analysis:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.13.0
+      
+      - name: Run tests with extra checks
+        run: zig build test -Doptimize=Debug

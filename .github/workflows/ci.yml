@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # Check code formatting
+  fmt:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.13.0
+      
+      - name: Check formatting
+        run: zig fmt --check .
+
+  # Build and test on multiple platforms
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        zig-version: ['0.13.0']
+        include:
+          - os: ubuntu-latest
+            zig-version: 'master'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: ${{ matrix.zig-version }}
+      
+      - name: Cache Zig
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/zig
+            zig-cache
+          key: ${{ runner.os }}-zig-${{ matrix.zig-version }}-${{ hashFiles('build.zig', 'build.zig.zon') }}
+      
+      - name: Build
+        run: zig build
+      
+      - name: Run tests
+        run: zig build test --summary all
+
+  # Coverage report
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.13.0
+      
+      - name: Install kcov
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y kcov
+      
+      - name: Generate coverage
+        run: |
+          zig build test
+          kcov --exclude-pattern=/usr/include coverage zig-out/bin/test
+      
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v5.5.2
+        with:
+          directory: ./coverage
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # Build documentation
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.13.0
+      
+      - name: Build documentation
+        run: zig build docs
+
+  # All checks passed
+  ci-success:
+    name: CI Success
+    needs: [fmt, test, coverage, docs]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark CI as successful
+        run: echo "All CI checks passed!"

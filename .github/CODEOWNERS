@@ -1,0 +1,22 @@
+# Default owners for everything
+*       @fabsswd
+
+# Format library
+/format/**  @fabsswd
+
+# Database engine
+/database/** @fabsswd
+
+# CLI tool
+/cli/** @fabsswd
+
+# Documentation
+/docs/** @fabsswd
+*.md @fabsswd
+
+# CI/CD
+/.github/** @fabsswd
+
+# Configuration files
+Cargo.toml @fabsswd
+Cargo.lock @fabsswd

@@ -1,0 +1,82 @@
+name: Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'src/**/*.zig'
+      - 'build.zig'
+      - 'build.zig.zon'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # Build and deploy Zig documentation
+  zigdoc:
+    name: Build Zig Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.13.0
+      
+      - name: Build documentation
+        run: zig build docs
+      
+      - name: Deploy to GitHub Pages
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./zig-out/docs
+          destination_dir: api
+
+  # Deploy user documentation
+  deploy-docs:
+    name: Deploy User Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect user docs
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f docs/package.json ]; then
+            echo "has_docs=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_docs=false" >> "$GITHUB_OUTPUT"
+            echo "No ./docs/package.json found; skipping user docs deploy."
+          fi
+      
+      - name: Setup Node.js
+        if: ${{ github.event_name == 'workflow_dispatch' && steps.detect.outputs.has_docs == 'true' }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        if: ${{ github.event_name == 'workflow_dispatch' && steps.detect.outputs.has_docs == 'true' }}
+        run: |
+          cd docs
+          npm install
+      
+      - name: Build documentation site
+        if: ${{ github.event_name == 'workflow_dispatch' && steps.detect.outputs.has_docs == 'true' }}
+        run: |
+          cd docs
+          npm run build
+      
+      - name: Deploy to GitHub Pages
+        if: ${{ github.event_name == 'workflow_dispatch' && steps.detect.outputs.has_docs == 'true' }}
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/build
