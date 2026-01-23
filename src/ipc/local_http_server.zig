@@ -7,14 +7,13 @@ pub fn LocalHttpServer(comptime Handler: type) type {
 
         allocator: std.mem.Allocator,
         handler: Handler,
-        server: std.net.StreamServer,
+        server: std.net.Server,
         buf: []u8,
         running: bool = false,
 
         pub fn init(allocator: std.mem.Allocator, port: u16, handler: Handler) !Self {
-            var server = std.net.StreamServer.init(.{ .reuse_address = true });
             const addr = try std.net.Address.parseIp4("127.0.0.1", port);
-            try server.listen(addr);
+            const server = try addr.listen(.{ .reuse_address = true });
             const buf = try allocator.alloc(u8, 16 * 1024);
             return .{
                 .allocator = allocator,
@@ -43,15 +42,16 @@ pub fn LocalHttpServer(comptime Handler: type) type {
             var conn = try self.server.accept();
             defer conn.stream.close();
 
-            const readn = try conn.stream.reader().read(self.buf);
+            const readn = try conn.stream.read(self.buf);
             const req = self.buf[0..readn];
 
-            const body = try self.handler.handle(req);
+            const body = try self.handler.handleRequest(req);
             defer self.allocator.free(body);
 
-            const writer = conn.stream.writer();
-            try writer.print("HTTP/1.1 200 OK\r\nContent-Length: {d}\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n", .{body.len});
-            try writer.writeAll(body);
+            const header = try std.fmt.allocPrint(self.allocator, "HTTP/1.1 200 OK\r\nContent-Length: {d}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n", .{body.len});
+            defer self.allocator.free(header);
+            _ = try conn.stream.write(header);
+            _ = try conn.stream.write(body);
         }
     };
 }

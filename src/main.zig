@@ -1,0 +1,180 @@
+const std = @import("std");
+const zigboard = @import("zigboard");
+
+const domain = zigboard.domain;
+const application = zigboard.application;
+const adapters = zigboard.adapters;
+const ipc = zigboard.ipc;
+const infrastructure = zigboard.infrastructure;
+
+const ClipboardHistory = domain.ClipboardHistory;
+const AddClipboardEntry = application.AddClipboardEntry;
+const ListClipboardHistory = application.ListClipboardHistory;
+const PinClipboardEntry = application.PinClipboardEntry;
+const DeleteClipboardEntry = zigboard.DeleteClipboardEntry;
+const InitializeSession = application.InitializeSession;
+const SessionRegistry = application.SessionRegistry;
+const FilePersistence = adapters.FilePersistence;
+const LinuxClipboard = adapters.LinuxClipboard;
+const ClipboardListener = adapters.ClipboardListener;
+const HistoryQueryHandler = ipc.HistoryQueryHandler;
+const CommandHandler = ipc.CommandHandler;
+const LocalHttpServer = ipc.LocalHttpServer;
+const Daemon = infrastructure.Daemon;
+
+fn isPinnedCb(id: domain.Id) bool {
+    _ = id;
+    return false; // TODO: Implement pinned tracking
+}
+
+const IdGenerator = struct {
+    random: std.Random,
+    pub fn generate(self: *IdGenerator) domain.Id {
+        var id: domain.Id = undefined;
+        self.random.bytes(&id);
+        return id;
+    }
+};
+
+const AppContext = struct {
+    allocator: std.mem.Allocator,
+    history: ClipboardHistory,
+    pinner: PinClipboardEntry,
+    deleter: DeleteClipboardEntry,
+    lister: ListClipboardHistory,
+    server: LocalHttpServer(*AppContext),
+    clipboard: LinuxClipboard,
+    persistence: FilePersistence,
+    registry: SessionRegistry,
+    id_gen: IdGenerator,
+
+    pub fn init(allocator: std.mem.Allocator) !AppContext {
+        var prng = std.Random.DefaultPrng.init(@intCast(std.time.timestamp()));
+        const random = prng.random();
+
+        var history = ClipboardHistory.init(allocator, 1000);
+        errdefer history.deinit();
+
+        var pinner_temp = PinClipboardEntry.init(allocator);
+        errdefer pinner_temp.deinit();
+
+        const id_gen = IdGenerator{ .random = random };
+        _ = AddClipboardEntry(IdGenerator).init(id_gen, &history);
+
+        var registry = SessionRegistry.init(allocator);
+        errdefer registry.deinit();
+
+        var session_init = InitializeSession.init(&registry, random);
+        _ = try session_init.execute(std.time.nanoTimestamp());
+
+        const persistence = FilePersistence.init(allocator, "clipboard_history.json");
+
+        var loaded_pers = @constCast(&persistence);
+        var loaded = try loaded_pers.load();
+        for (loaded.items) |item| {
+            try history.add(item);
+        }
+        loaded.deinit(allocator);
+
+        const clipboard = LinuxClipboard.init(allocator);
+
+        var server = try LocalHttpServer(*AppContext).init(allocator, 8080, undefined);
+        errdefer server.deinit();
+
+        // Create and return the context - handlers will be set in main() after struct is stable
+        return AppContext{
+            .allocator = allocator,
+            .history = history,
+            .pinner = pinner_temp, // temporary
+            .deleter = undefined, // will be set in main() after struct is stable
+            .lister = undefined, // will be set in main() after struct is stable
+            .server = server,
+            .clipboard = clipboard,
+            .persistence = persistence,
+            .registry = registry,
+            .id_gen = id_gen,
+        };
+    }
+
+    pub fn handleRequest(self: *AppContext, req: []const u8) ![]const u8 {
+        // Route to appropriate handler
+        if (std.mem.indexOf(u8, req, "GET /history") != null) {
+            var lister_copy = self.lister;
+            var query_handler = HistoryQueryHandler.init(self.allocator, &lister_copy, &isPinnedCb);
+            return query_handler.handle(req);
+        }
+        var command_handler = CommandHandler.init(self.allocator, &self.history, &self.pinner, &self.deleter);
+        return command_handler.handle(req);
+    }
+
+    pub fn deinit(self: *AppContext) void {
+        self.server.deinit();
+        self.registry.deinit();
+        self.registry.deinit();
+        self.pinner.deinit();
+        self.history.deinit();
+    }
+};
+
+const Router = struct {
+    allocator: std.mem.Allocator,
+    query_handler: HistoryQueryHandler,
+    command_handler: CommandHandler,
+
+    pub fn handle(self: *Router, req: []const u8) ![]const u8 {
+        if (std.mem.indexOf(u8, req, "GET /history") != null) {
+            return self.query_handler.handle(req);
+        }
+        return self.command_handler.handle(req);
+    }
+};
+
+fn tick(ctx_ptr: *anyopaque) !void {
+    const ctx: *AppContext = @ptrCast(@alignCast(ctx_ptr));
+    try ctx.server.acceptOnce();
+}
+
+fn onStart(ctx_ptr: *anyopaque) !void {
+    const ctx: *AppContext = @ptrCast(@alignCast(ctx_ptr));
+    ctx.server.start();
+    std.debug.print("Zigboard daemon started on http://127.0.0.1:8080\n", .{});
+    std.debug.print("Open ui/index.html in your browser\n", .{});
+}
+
+fn onStop(ctx_ptr: *anyopaque) void {
+    const ctx: *AppContext = @ptrCast(@alignCast(ctx_ptr));
+    ctx.server.stop();
+    
+    const items = ctx.history.slice();
+    ctx.persistence.save(items) catch |err| {
+        std.debug.print("Failed to save history: {}\n", .{err});
+    };
+    
+    std.debug.print("Zigboard daemon stopped\n", .{});
+}
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    var ctx = try AppContext.init(allocator);
+    defer ctx.deinit();
+
+    // Now that ctx is in its final location, set up self-referential pointers
+    ctx.deleter = DeleteClipboardEntry.init(&ctx.history);
+    ctx.lister = ListClipboardHistory.init(&ctx.history);
+
+    // Set the handler to point to the context now that ctx has a stable address
+    ctx.server.handler = &ctx;
+
+    var daemon = Daemon.init(allocator, .{
+        .tick = tick,
+        .on_start = onStart,
+        .on_stop = onStop,
+        .ctx = &ctx,
+        .idle_ns = 1000,
+    });
+
+    try daemon.run();
+}

@@ -13,13 +13,13 @@ pub const ClipboardHistory = struct {
         std.debug.assert(max_items > 0);
         return .{
             .allocator = allocator,
-            .items = std.ArrayList(ClipboardItem).init(allocator),
+            .items = std.ArrayList(ClipboardItem){},
             .max_items = max_items,
         };
     }
 
     pub fn deinit(self: *ClipboardHistory) void {
-        self.items.deinit();
+        self.items.deinit(self.allocator);
     }
 
     fn findIndex(self: *ClipboardHistory, id: Id) ?usize {
@@ -37,7 +37,7 @@ pub const ClipboardHistory = struct {
         if (self.findIndex(item.id)) |idx| {
             _ = self.items.orderedRemove(idx);
         }
-        try self.items.insert(0, item);
+        try self.items.insert(self.allocator, 0, item);
         if (self.items.items.len > self.max_items) {
             _ = self.items.pop();
         }

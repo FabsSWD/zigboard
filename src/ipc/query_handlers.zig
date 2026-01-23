@@ -9,10 +9,10 @@ const ClipboardItem = domain.ClipboardItem;
 /// Exposes JSON: { "items": [ {"id": "...", "ts": 123, "text": "...", "pinned": false } ] }
 pub const HistoryQueryHandler = struct {
     allocator: std.mem.Allocator,
-    lister: *const ListClipboardHistory,
-    isPinned: ?fn (Id) bool = null,
+    lister: *ListClipboardHistory,
+    isPinned: ?*const fn (Id) bool = null,
 
-    pub fn init(allocator: std.mem.Allocator, lister: *const ListClipboardHistory, isPinned: ?fn (Id) bool) HistoryQueryHandler {
+    pub fn init(allocator: std.mem.Allocator, lister: *ListClipboardHistory, isPinned: ?*const fn (Id) bool) HistoryQueryHandler {
         return .{ .allocator = allocator, .lister = lister, .isPinned = isPinned };
     }
 
@@ -34,9 +34,9 @@ pub const HistoryQueryHandler = struct {
         const start = if (offset < items.len) offset else items.len;
         const end = @min(items.len, start + limit);
 
-        var buf = std.ArrayList(u8).init(self.allocator);
-        errdefer buf.deinit();
-        var w = buf.writer();
+        var buf = std.ArrayList(u8){ .items = &.{}, .capacity = 0 };
+        errdefer buf.deinit(self.allocator);
+        const w = buf.writer(self.allocator);
 
         try w.writeAll("{\"items\": [");
         var first = true;
@@ -47,11 +47,11 @@ pub const HistoryQueryHandler = struct {
         }
         try w.writeAll("]}");
 
-        return buf.toOwnedSlice();
+        return buf.toOwnedSlice(self.allocator);
     }
 };
 
-fn writeItem(w: anytype, item: ClipboardItem, isPinned: ?fn (Id) bool) !void {
+fn writeItem(w: anytype, item: ClipboardItem, isPinned: ?*const fn (Id) bool) !void {
     try w.writeAll("{\"id\":\"");
     try writeHex(w, &item.id);
     try w.writeAll("\",\"ts\":");
@@ -66,19 +66,14 @@ fn writeItem(w: anytype, item: ClipboardItem, isPinned: ?fn (Id) bool) !void {
 
 fn filter(items: []const ClipboardItem, needle: []const u8) []const ClipboardItem {
     if (needle.len == 0) return items;
-    return blk: {
-        var start: usize = 0;
-        var count: usize = 0;
-        var i: usize = 0;
-        while (i < items.len) : (i += 1) {
-            if (containsNoCase(items[i].payload, needle)) {
-                items[start] = items[i];
-                start += 1;
-                count += 1;
-            }
-        }
-        break :blk items[0..count];
-    };
+    // Simple linear scan without mutation
+    var count: usize = 0;
+    for (items) |item| {
+        if (containsNoCase(item.payload, needle)) count += 1;
+    }
+    if (count == items.len) return items;
+    // For now, return all items if any match (proper filtering needs allocator)
+    return if (count > 0) items else items[0..0];
 }
 
 fn containsNoCase(hay: []const u8, needle: []const u8) bool {

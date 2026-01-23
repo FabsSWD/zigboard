@@ -4,13 +4,13 @@ const ClipboardHistory = domain.ClipboardHistory;
 const ClipboardItem = domain.ClipboardItem;
 
 pub const ListClipboardHistory = struct {
-    history: *const ClipboardHistory,
+    history: *ClipboardHistory,
 
     pub const Output = struct {
         items: []const ClipboardItem,
     };
 
-    pub fn init(history: *const ClipboardHistory) ListClipboardHistory {
+    pub fn init(history: *ClipboardHistory) ListClipboardHistory {
         return .{ .history = history };
     }
 

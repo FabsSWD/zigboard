@@ -52,9 +52,9 @@ pub const CommandHandler = struct {
 
     fn delete(self: *CommandHandler, path: []const u8) ![]const u8 {
         const id = parseIdParam(path) catch |err| return respondError(self.allocator, errMsg(err));
-        self.deleter.execute(id) catch |err| switch (err) {
-            error.EntryNotFound => return respondError(self.allocator, "id not found"),
-            else => return respondError(self.allocator, "internal error"),
+        self.deleter.execute(id) catch |err| {
+            if (err == error.EntryNotFound) return respondError(self.allocator, "id not found");
+            return respondError(self.allocator, "internal error");
         };
         _ = self.pinner.unpin(id);
         return respondOk(self.allocator, "deleted");
