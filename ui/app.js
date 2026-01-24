@@ -47,25 +47,54 @@ class ClipboardUI {
 
     render() {
         this.historyList.innerHTML = '';
-        this.items.forEach((item, idx) => {
-            const div = document.createElement('div');
-            div.className = `history-item${item.pinned ? ' pinned' : ''}${idx === this.selectedIndex ? ' selected' : ''}`;
-            div.onclick = () => { this.selectedIndex = idx; this.render(); };
-            div.ondblclick = () => this.copySelected();
+        const grouped = this.groupItems(this.items);
+        let flatIndex = 0;
+        
+        grouped.forEach(group => {
+            // Group header
+            const header = document.createElement('div');
+            header.className = 'group-header';
+            header.textContent = group.title;
+            this.historyList.appendChild(header);
             
-            const text = document.createElement('div');
-            text.className = 'item-text';
-            text.textContent = item.text.substring(0, 200) + (item.text.length > 200 ? '...' : '');
-            
-            const meta = document.createElement('div');
-            meta.className = 'item-meta';
-            const ts = new Date(item.ts / 1_000_000).toLocaleString();
-            meta.textContent = `${ts} · ${item.text.length} chars${item.pinned ? ' · PINNED' : ''}`;
-            
-            div.appendChild(text);
-            div.appendChild(meta);
-            this.historyList.appendChild(div);
+            // Group items
+            group.items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = `history-item${item.pinned ? ' pinned' : ''}${flatIndex === this.selectedIndex ? ' selected' : ''}`;
+                div.onclick = () => { this.selectedIndex = flatIndex; this.render(); };
+                div.ondblclick = () => this.copySelected();
+                
+                const text = document.createElement('div');
+                text.className = 'item-text';
+                text.textContent = item.text.substring(0, 200) + (item.text.length > 200 ? '...' : '');
+                
+                const meta = document.createElement('div');
+                meta.className = 'item-meta';
+                const ts = new Date(item.ts / 1_000_000).toLocaleString();
+                meta.textContent = `${ts} · ${item.text.length} chars`;
+                
+                div.appendChild(text);
+                div.appendChild(meta);
+                this.historyList.appendChild(div);
+                flatIndex++;
+            });
         });
+    }
+    
+    groupItems(items) {
+        const pinned = items.filter(i => i.pinned);
+        const unpinned = items.filter(i => !i.pinned);
+        const groups = [];
+        
+        if (pinned.length > 0) {
+            groups.push({ title: `📌 Pinned (${pinned.length})`, items: pinned });
+        }
+        
+        if (unpinned.length > 0) {
+            groups.push({ title: `📋 Recent (${unpinned.length})`, items: unpinned });
+        }
+        
+        return groups;
     }
 
     moveSelection(delta) {

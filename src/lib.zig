@@ -23,6 +23,7 @@ pub const adapters = struct {
     pub const LinuxClipboard = @import("adapters/linux_clipboard.zig").LinuxClipboard;
     pub const ClipboardListener = @import("adapters/clipboard_listener.zig").ClipboardListener;
     pub const FilePersistence = @import("adapters/file_persistence.zig").FilePersistence;
+    pub const WebhookNotifier = @import("adapters/webhook_notifier.zig").WebhookNotifier;
 };
 
 pub const infrastructure = struct {

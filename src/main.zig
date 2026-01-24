@@ -15,6 +15,7 @@ const DeleteClipboardEntry = zigboard.DeleteClipboardEntry;
 const InitializeSession = application.InitializeSession;
 const SessionRegistry = application.SessionRegistry;
 const FilePersistence = adapters.FilePersistence;
+const WebhookNotifier = adapters.WebhookNotifier;
 const LinuxClipboard = adapters.LinuxClipboard;
 const ClipboardListener = adapters.ClipboardListener;
 const HistoryQueryHandler = ipc.HistoryQueryHandler;
@@ -22,9 +23,14 @@ const CommandHandler = ipc.CommandHandler;
 const LocalHttpServer = ipc.LocalHttpServer;
 const Daemon = infrastructure.Daemon;
 
+// Global pointer to current context for isPinned callback
+var global_pinner: ?*PinClipboardEntry = null;
+
 fn isPinnedCb(id: domain.Id) bool {
-    _ = id;
-    return false; // TODO: Implement pinned tracking
+    if (global_pinner) |pinner| {
+        return pinner.isPinned(id);
+    }
+    return false;
 }
 
 const IdGenerator = struct {
@@ -49,6 +55,7 @@ const AppContext = struct {
     registry: SessionRegistry,
     id_gen: IdGenerator,
     last_clipboard_content: ?[]const u8,
+    webhook: ?WebhookNotifier = null,
 
     pub fn init(allocator: std.mem.Allocator) !AppContext {
         var prng = std.Random.DefaultPrng.init(@intCast(std.time.timestamp()));
@@ -96,10 +103,15 @@ const AppContext = struct {
             .registry = registry,
             .id_gen = id_gen,
             .last_clipboard_content = null,
+            .webhook = null,
         };
     }
 
     pub fn handleRequest(self: *AppContext, req: []const u8) ![]const u8 {
+        // Set global pinner for callback
+        global_pinner = &self.pinner;
+        defer global_pinner = null;
+        
         // Route to appropriate handler
         if (std.mem.indexOf(u8, req, "GET /history") != null) {
             var lister_copy = self.lister;
@@ -107,6 +119,8 @@ const AppContext = struct {
             return query_handler.handle(req);
         }
         var command_handler = CommandHandler.init(self.allocator, &self.history, &self.pinner, &self.deleter);
+        command_handler.onDeleted = &onDeletedCb;
+        command_handler.onDeletedCtx = self;
         return command_handler.handle(req);
     }
 
@@ -167,12 +181,20 @@ fn tick(ctx_ptr: *anyopaque) !void {
             // Save new content
             ctx.last_clipboard_content = try ctx.allocator.dupe(u8, new_content);
             
-            // Add to history
+            // Add to history (use owned duplicate as source)
             const timestamp = std.time.nanoTimestamp();
             try ctx.adder.execute(.{
-                .payload = new_content,
+                .payload = ctx.last_clipboard_content.?,
                 .timestamp = timestamp,
             });
+
+            // Notify webhook if configured
+            if (ctx.webhook) |*wh| {
+                const item = ctx.history.at(0);
+                wh.notifyAdded(item.id, item.created_at, item.payload) catch |err| {
+                    std.debug.print("Webhook notify add failed: {}\n", .{err});
+                };
+            }
         }
     }
     
@@ -214,6 +236,12 @@ pub fn main() !void {
     // Set the handler to point to the context now that ctx has a stable address
     ctx.server.handler = &ctx;
 
+    // Configure webhook from environment if present
+    if (std.process.getEnvVarOwned(allocator, "ZIGBOARD_WEBHOOK_URL")) |url| {
+        defer allocator.free(url);
+        ctx.webhook = WebhookNotifier.init(allocator, url) catch null;
+    } else |_| {}
+
     var daemon = Daemon.init(allocator, .{
         .tick = tick,
         .on_start = onStart,
@@ -223,4 +251,13 @@ pub fn main() !void {
     });
 
     try daemon.run();
+}
+
+fn onDeletedCb(ctx_ptr: *anyopaque, id: domain.Id) void {
+    const ctx: *AppContext = @ptrCast(@alignCast(ctx_ptr));
+    if (ctx.webhook) |*wh| {
+        wh.notifyDeleted(id) catch |err| {
+            std.debug.print("Webhook notify delete failed: {}\n", .{err});
+        };
+    }
 }

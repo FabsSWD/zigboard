@@ -67,6 +67,24 @@ zig build docs
 zig build
 ```
 
+## Webhook Notifications
+
+You can enable outbound webhook notifications for clipboard changes:
+
+- **On add**: Sends a POST with `{"event":"clipboard_added","id":"<hex>","ts":<timestamp>,"text":"..."}`
+- **On delete**: Sends a POST with `{"event":"clipboard_deleted","id":"<hex>"}`
+
+Configure the webhook URL via environment variable before starting the daemon:
+
+```bash
+export ZIGBOARD_WEBHOOK_URL="http://localhost:9000/clip-events"
+zig build run
+```
+
+Notes:
+- The POST is performed using `curl` for simplicity; ensure `curl` is installed and on `PATH`.
+- If the webhook is unreachable, Zigboard continues running and logs the error.
+
 ## Stopping the Daemon
 
 Press `Ctrl+C` or send SIGINT/SIGTERM signal.

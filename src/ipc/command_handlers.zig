@@ -12,6 +12,8 @@ pub const CommandHandler = struct {
     history: *ClipboardHistory,
     pinner: *PinClipboardEntry,
     deleter: *DeleteClipboardEntry,
+    onDeleted: ?*const fn (*anyopaque, Id) void = null,
+    onDeletedCtx: ?*anyopaque = null,
 
     pub fn init(allocator: std.mem.Allocator, history: *ClipboardHistory, pinner: *PinClipboardEntry, deleter: *DeleteClipboardEntry) CommandHandler {
         return .{ .allocator = allocator, .history = history, .pinner = pinner, .deleter = deleter };
@@ -57,6 +59,9 @@ pub const CommandHandler = struct {
             return respondError(self.allocator, "internal error");
         };
         _ = self.pinner.unpin(id);
+        if (self.onDeleted) |f| {
+            if (self.onDeletedCtx) |ctx| f(ctx, id);
+        }
         return respondOk(self.allocator, "deleted");
     }
 };
