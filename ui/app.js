@@ -4,6 +4,7 @@ class ClipboardUI {
     constructor() {
         this.items = [];
         this.selectedIndex = 0;
+        this.viewItems = [];
         this.searchInput = document.getElementById('search-input');
         this.historyList = document.getElementById('history-list');
         this.statusBar = document.getElementById('status-bar');
@@ -38,8 +39,15 @@ class ClipboardUI {
             if (this.searchQuery) params.set('q', this.searchQuery);
             const res = await fetch(`${API_BASE}/history?${params}`);
             const data = await res.json();
+            const prevId = this.viewItems[this.selectedIndex]?.id;
             this.items = data.items || [];
-            this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, this.items.length - 1));
+            this.viewItems = this.computeViewItems(this.items);
+            const foundIndex = prevId ? this.viewItems.findIndex(it => it.id === prevId) : -1;
+            if (foundIndex >= 0) {
+                this.selectedIndex = foundIndex;
+            } else {
+                this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, this.viewItems.length - 1));
+            }
             this.render();
             this.setStatus('Ready');
         } catch (err) { this.setStatus(`Error: ${err.message}`); }
@@ -47,7 +55,7 @@ class ClipboardUI {
 
     render() {
         this.historyList.innerHTML = '';
-        const grouped = this.groupItems(this.items);
+        const grouped = this.groupItems(this.viewItems);
         let flatIndex = 0;
         
         grouped.forEach(group => {
@@ -72,9 +80,29 @@ class ClipboardUI {
                 meta.className = 'item-meta';
                 const ts = new Date(item.ts / 1_000_000).toLocaleString();
                 meta.textContent = `${ts} · ${item.text.length} chars`;
+
+                // Actions (pin/unpin, delete)
+                const actions = document.createElement('div');
+                actions.className = 'item-actions';
+
+                const pinBtn = document.createElement('span');
+                pinBtn.className = 'material-symbols-outlined icon-btn';
+                pinBtn.textContent = item.pinned ? 'keep_off' : 'keep';
+                pinBtn.title = item.pinned ? 'Unpin' : 'Pin';
+                pinBtn.onclick = (ev) => { ev.stopPropagation(); this.selectedIndex = flatIndex; this.togglePinSelected(); };
+
+                const delBtn = document.createElement('span');
+                delBtn.className = 'material-symbols-outlined icon-btn';
+                delBtn.textContent = 'delete';
+                delBtn.title = 'Delete';
+                delBtn.onclick = (ev) => { ev.stopPropagation(); this.selectedIndex = flatIndex; this.deleteSelected(); };
+
+                actions.appendChild(pinBtn);
+                actions.appendChild(delBtn);
                 
                 div.appendChild(text);
                 div.appendChild(meta);
+                div.appendChild(actions);
                 this.historyList.appendChild(div);
                 flatIndex++;
             });
@@ -98,12 +126,12 @@ class ClipboardUI {
     }
 
     moveSelection(delta) {
-        this.selectedIndex = Math.max(0, Math.min(this.items.length - 1, this.selectedIndex + delta));
+        this.selectedIndex = Math.max(0, Math.min(this.viewItems.length - 1, this.selectedIndex + delta));
         this.render();
     }
 
     async copySelected() {
-        const item = this.items[this.selectedIndex];
+        const item = this.viewItems[this.selectedIndex];
         if (!item) return;
         try {
             await navigator.clipboard.writeText(item.text);
@@ -112,7 +140,7 @@ class ClipboardUI {
     }
 
     async togglePinSelected() {
-        const item = this.items[this.selectedIndex];
+        const item = this.viewItems[this.selectedIndex];
         if (!item) return;
         const endpoint = item.pinned ? 'unpin' : 'pin';
         try {
@@ -123,7 +151,7 @@ class ClipboardUI {
     }
 
     async deleteSelected() {
-        const item = this.items[this.selectedIndex];
+        const item = this.viewItems[this.selectedIndex];
         if (!item) return;
         if (!confirm('Delete?')) return;
         try {
@@ -135,5 +163,11 @@ class ClipboardUI {
 
     setStatus(msg) { this.statusBar.textContent = msg; }
 }
+
+ClipboardUI.prototype.computeViewItems = function(items) {
+    const pinned = items.filter(i => i.pinned);
+    const unpinned = items.filter(i => !i.pinned);
+    return [...pinned, ...unpinned];
+};
 
 new ClipboardUI();

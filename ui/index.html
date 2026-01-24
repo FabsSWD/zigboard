@@ -4,22 +4,61 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zigboard</title>
+    <!-- Material Symbols for action icons -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0..1,0..200" />
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: system-ui, sans-serif; background: #1e1e1e; color: #d4d4d4; height: 100vh; display: flex; flex-direction: column; }
-        #search-bar { padding: 1rem; background: #252526; border-bottom: 1px solid #3e3e42; }
-        #search-input { width: 100%; padding: 0.5rem; background: #3c3c3c; border: 1px solid #3e3e42; color: #d4d4d4; font-size: 1rem; outline: none; }
+        #search-bar { padding: 12px 16px; background: #252526; border-bottom: 1px solid #3e3e42; }
+        #search-input { width: 100%; padding: 10px 12px; background: #3c3c3c; border: 1px solid #3e3e42; color: #d4d4d4; font-size: 16px; outline: none; border-radius: 8px; }
         #search-input:focus { border-color: #007acc; }
-        #history-list { flex: 1; overflow-y: auto; padding: 0.5rem; }
-        .group-header { font-size: 0.75rem; font-weight: 600; color: #007acc; text-transform: uppercase; padding: 1rem 0.75rem 0.5rem; letter-spacing: 0.5px; }
-        .history-item { background: #252526; border: 1px solid #3e3e42; padding: 0.75rem; margin-bottom: 0.5rem; cursor: pointer; transition: background 0.1s; }
-        .history-item:hover, .history-item.selected { background: #2a2d2e; border-color: #007acc; }
-        .history-item.pinned { border-left: 3px solid #007acc; }
-        .item-text { white-space: pre-wrap; word-break: break-word; font-size: 0.9rem; }
-        .item-meta { font-size: 0.75rem; color: #858585; margin-top: 0.5rem; }
-        #status-bar { padding: 0.5rem 1rem; background: #007acc; color: white; font-size: 0.85rem; text-align: center; }
-        #keyboard-help { position: fixed; bottom: 3rem; right: 1rem; background: #252526; border: 1px solid #3e3e42; padding: 1rem; font-size: 0.75rem; opacity: 0.7; }
-        .kbd { background: #3c3c3c; padding: 0.2rem 0.4rem; border-radius: 3px; font-family: monospace; }
+        #history-list { flex: 1; overflow-y: auto; padding: 12px; }
+        .group-header { font-size: 12px; font-weight: 600; color: #9cdcfe; text-transform: uppercase; padding: 16px 8px 8px; letter-spacing: 0.4px; }
+
+        /* Card style for clipboard items */
+        .history-item {
+            position: relative;
+            background: #2e2e2e;
+            border: 1px solid #3e3e42;
+            padding: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: background 0.1s, border-color 0.1s, box-shadow 0.1s;
+            border-radius: 12px;
+            box-shadow: 0 1px 0 rgba(0,0,0,0.35);
+        }
+        .history-item:hover { background: #333437; }
+        .history-item.selected { border-color: #007acc; box-shadow: 0 0 0 2px rgba(0,122,204,0.35) inset; }
+        /* No side line for pinned items per GNOME style */
+
+        .item-text { white-space: pre-wrap; word-break: break-word; font-size: 18px; line-height: 1.4; }
+        .item-meta { font-size: 12px; color: #a6a6a6; margin-top: 12px; }
+
+        .item-actions {
+            position: absolute;
+            top: 10px;
+            right: 12px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .material-symbols-outlined {
+            font-variation-settings:
+                'FILL' 0,
+                'wght' 400,
+                'GRAD' 0,
+                'opsz' 24;
+            font-size: 22px;
+            color: #e0e0e0; /* neutral icon color */
+        }
+        .icon-btn { display: inline-flex; align-items: center; justify-content: center; padding: 4px; border-radius: 8px; }
+        .icon-btn:hover { background: rgba(255,255,255,0.08); }
+        /* Use filled pin without special color */
+        .icon-pin-filled { font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24; }
+
+        #status-bar { padding: 8px 16px; background: #007acc; color: white; font-size: 14px; text-align: center; }
+        #keyboard-help { position: fixed; bottom: 3rem; right: 1rem; background: #252526; border: 1px solid #3e3e42; padding: 12px; font-size: 12px; opacity: 0.7; border-radius: 8px; }
+        .kbd { background: #3c3c3c; padding: 2px 6px; border-radius: 6px; font-family: monospace; }
     </style>
 </head>
 <body>
