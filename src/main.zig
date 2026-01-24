@@ -42,11 +42,13 @@ const AppContext = struct {
     pinner: PinClipboardEntry,
     deleter: DeleteClipboardEntry,
     lister: ListClipboardHistory,
+    adder: AddClipboardEntry(IdGenerator),
     server: LocalHttpServer(*AppContext),
     clipboard: LinuxClipboard,
     persistence: FilePersistence,
     registry: SessionRegistry,
     id_gen: IdGenerator,
+    last_clipboard_content: ?[]const u8,
 
     pub fn init(allocator: std.mem.Allocator) !AppContext {
         var prng = std.Random.DefaultPrng.init(@intCast(std.time.timestamp()));
@@ -58,8 +60,9 @@ const AppContext = struct {
         var pinner_temp = PinClipboardEntry.init(allocator);
         errdefer pinner_temp.deinit();
 
+        const clipboard = LinuxClipboard.init(allocator);
+
         const id_gen = IdGenerator{ .random = random };
-        _ = AddClipboardEntry(IdGenerator).init(id_gen, &history);
 
         var registry = SessionRegistry.init(allocator);
         errdefer registry.deinit();
@@ -76,8 +79,6 @@ const AppContext = struct {
         }
         loaded.deinit(allocator);
 
-        const clipboard = LinuxClipboard.init(allocator);
-
         var server = try LocalHttpServer(*AppContext).init(allocator, 8080, undefined);
         errdefer server.deinit();
 
@@ -88,11 +89,13 @@ const AppContext = struct {
             .pinner = pinner_temp, // temporary
             .deleter = undefined, // will be set in main() after struct is stable
             .lister = undefined, // will be set in main() after struct is stable
+            .adder = undefined, // will be set in main() after struct is stable
             .server = server,
             .clipboard = clipboard,
             .persistence = persistence,
             .registry = registry,
             .id_gen = id_gen,
+            .last_clipboard_content = null,
         };
     }
 
@@ -108,6 +111,9 @@ const AppContext = struct {
     }
 
     pub fn deinit(self: *AppContext) void {
+        if (self.last_clipboard_content) |content| {
+            self.allocator.free(content);
+        }
         self.server.deinit();
         self.registry.deinit();
         self.registry.deinit();
@@ -130,7 +136,46 @@ const Router = struct {
 };
 
 fn tick(ctx_ptr: *anyopaque) !void {
-    const ctx: *AppContext = @ptrCast(@alignCast(ctx_ptr));
+    var ctx: *AppContext = @ptrCast(@alignCast(ctx_ptr));
+    
+    // Poll clipboard for changes
+    const content = ctx.clipboard.read() catch |err| blk: {
+        if (err == error.ClipboardReadFailed) break :blk null;
+        return err;
+    };
+    
+    if (content) |new_content| {
+        defer ctx.clipboard.free(new_content);
+        
+        // Skip empty clipboard content
+        if (new_content.len == 0) {
+            try ctx.server.acceptOnce();
+            return;
+        }
+        
+        const changed = if (ctx.last_clipboard_content) |last|
+            !std.mem.eql(u8, last, new_content)
+        else
+            true;
+        
+        if (changed) {
+            // Free old content
+            if (ctx.last_clipboard_content) |last| {
+                ctx.allocator.free(last);
+            }
+            
+            // Save new content
+            ctx.last_clipboard_content = try ctx.allocator.dupe(u8, new_content);
+            
+            // Add to history
+            const timestamp = std.time.nanoTimestamp();
+            try ctx.adder.execute(.{
+                .payload = new_content,
+                .timestamp = timestamp,
+            });
+        }
+    }
+    
     try ctx.server.acceptOnce();
 }
 
@@ -164,6 +209,7 @@ pub fn main() !void {
     // Now that ctx is in its final location, set up self-referential pointers
     ctx.deleter = DeleteClipboardEntry.init(&ctx.history);
     ctx.lister = ListClipboardHistory.init(&ctx.history);
+    ctx.adder = AddClipboardEntry(IdGenerator).init(&ctx.id_gen, &ctx.history);
 
     // Set the handler to point to the context now that ctx has a stable address
     ctx.server.handler = &ctx;
@@ -173,7 +219,7 @@ pub fn main() !void {
         .on_start = onStart,
         .on_stop = onStop,
         .ctx = &ctx,
-        .idle_ns = 1000,
+        .idle_ns = 500 * std.time.ns_per_ms,
     });
 
     try daemon.run();

@@ -15,10 +15,10 @@ pub fn AddClipboardEntry(comptime IdGenerator: type) type {
     return struct {
         const Self = @This();
 
-        id_gen: IdGenerator,
+        id_gen: *IdGenerator,
         history: *ClipboardHistory,
 
-        pub fn init(id_gen: IdGenerator, history: *ClipboardHistory) Self {
+        pub fn init(id_gen: *IdGenerator, history: *ClipboardHistory) Self {
             return .{
                 .id_gen = id_gen,
                 .history = history,
@@ -27,7 +27,10 @@ pub fn AddClipboardEntry(comptime IdGenerator: type) type {
 
         pub fn execute(self: *Self, input: AddClipboardEntryInput) !void {
             const id = self.id_gen.generate();
-            const item = try ClipboardItem.init(id, input.timestamp, input.payload);
+
+            // Duplicate payload so the item owns its bytes; clipboard buffers are freed after polling.
+            const payload_copy = try self.history.allocator.dupe(u8, input.payload);
+            const item = try ClipboardItem.init(id, input.timestamp, payload_copy);
             try self.history.add(item);
         }
     };

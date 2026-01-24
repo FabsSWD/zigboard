@@ -48,7 +48,7 @@ pub fn LocalHttpServer(comptime Handler: type) type {
             const body = try self.handler.handleRequest(req);
             defer self.allocator.free(body);
 
-            const header = try std.fmt.allocPrint(self.allocator, "HTTP/1.1 200 OK\r\nContent-Length: {d}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n", .{body.len});
+            const header = try std.fmt.allocPrint(self.allocator, "HTTP/1.1 200 OK\r\nContent-Length: {d}\r\nContent-Type: application/json\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n", .{body.len});
             defer self.allocator.free(header);
             _ = try conn.stream.write(header);
             _ = try conn.stream.write(body);

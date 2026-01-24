@@ -19,6 +19,10 @@ pub const ClipboardHistory = struct {
     }
 
     pub fn deinit(self: *ClipboardHistory) void {
+        // Free payloads we own before dropping the list buffer.
+        for (self.items.items) |it| {
+            self.allocator.free(it.payload);
+        }
         self.items.deinit(self.allocator);
     }
 
@@ -35,17 +39,20 @@ pub const ClipboardHistory = struct {
 
     pub fn add(self: *ClipboardHistory, item: ClipboardItem) !void {
         if (self.findIndex(item.id)) |idx| {
-            _ = self.items.orderedRemove(idx);
+            const removed = self.items.orderedRemove(idx);
+            self.allocator.free(removed.payload);
         }
         try self.items.insert(self.allocator, 0, item);
         if (self.items.items.len > self.max_items) {
-            _ = self.items.pop();
+            const removed = self.items.pop() orelse unreachable;
+            self.allocator.free(removed.payload);
         }
     }
 
     pub fn remove(self: *ClipboardHistory, id: Id) bool {
         if (self.findIndex(id)) |idx| {
-            _ = self.items.orderedRemove(idx);
+            const removed = self.items.orderedRemove(idx);
+            self.allocator.free(removed.payload);
             return true;
         }
         return false;
